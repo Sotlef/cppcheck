@@ -33,13 +33,14 @@ namespace {
     CheckExceptionSafety instance;
 }
 
+static const Token *functionThrows (const Function *function);
 
 //---------------------------------------------------------------------------
 
 void CheckExceptionSafety::destructors()
 {
-    if (!mSettings->isEnabled(Settings::WARNING))
-        return;
+    //if (!mSettings->isEnabled(Settings::WARNING))
+    //    return;
 
     const SymbolDatabase* const symbolDatabase = mTokenizer->getSymbolDatabase();
 
@@ -50,24 +51,27 @@ void CheckExceptionSafety::destructors()
             continue;
         // only looking for destructors
         if (function->type == Function::eDestructor) {
-            // Inspect this destructor.
-            for (const Token *tok = scope->bodyStart->next(); tok != scope->bodyEnd; tok = tok->next()) {
-                // Skip try blocks
-                if (Token::simpleMatch(tok, "try {")) {
-                    tok = tok->next()->link();
-                }
+            //// Inspect this destructor.
+            //for (const Token *tok = scope->bodyStart->next(); tok != scope->bodyEnd; tok = tok->next()) {
+            //    // Skip try blocks
+            //    if (Token::simpleMatch(tok, "try {")) {
+            //        tok = tok->next()->link();
+            //    }
 
-                // Skip uncaught exceptions
-                else if (Token::simpleMatch(tok, "if ( ! std :: uncaught_exception ( ) ) {")) {
-                    tok = tok->next()->link(); // end of if ( ... )
-                    tok = tok->next()->link(); // end of { ... }
-                }
+            //    // Skip uncaught exceptions
+            //    else if (Token::simpleMatch(tok, "if ( ! std :: uncaught_exception ( ) ) {")) {
+            //        tok = tok->next()->link(); // end of if ( ... )
+            //        tok = tok->next()->link(); // end of { ... }
+            //    }
 
-                // throw found within a destructor
-                else if (tok->str() == "throw") {
-                    destructorsError(tok, scope->className);
-                    break;
-                }
+            //    // throw found within a destructor
+            //    else if (tok->str() == "throw") {
+            //        destructorsError(tok, scope->className);
+            //        break;
+            //    }
+            //}
+            if (auto token = functionThrows (function)) {
+                destructorsError (token, scope->className);
             }
         }
     }
