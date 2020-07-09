@@ -2474,6 +2474,59 @@ const Token * Function::constructorMemberInitialization() const
     return nullptr;
 }
 
+std::string Function::getQualifiedName () const
+{
+    std::string function_name;
+
+    if (tokenDef) {
+        if (const Scope *parentScope = nestedIn) {
+            std::stack<std::string> fqpn;
+
+            do {
+                switch (parentScope->type) {
+                    case Scope::eClass: case Scope::eStruct: {
+                        fqpn.push (parentScope->className);
+                        if (::Type *type = parentScope->definedType)
+                            parentScope = type->enclosingScope;
+                        else
+                            parentScope = nullptr;
+                        break;
+                    }
+
+                    case Scope::eNamespace: {
+                        fqpn.push (parentScope->className);
+                        parentScope = parentScope->nestedIn;
+                        break;
+                    }
+
+                    case Scope::eGlobal: {
+                        parentScope = nullptr;
+                        break;
+                    }
+                }
+            } while (parentScope);
+
+            while (!fqpn.empty ()) {
+                function_name += fqpn.top () + " :: ";
+                fqpn.pop ();
+            }
+
+            if (Function::eDestructor == type) {
+                function_name += '~';
+            }
+        }
+
+        if (const Token *def = tokenDef) {
+            do {
+                function_name += def->str () + ' ';
+                def = def->next ();
+            } while (def && def->str () != ";");
+        }
+    }
+
+    return function_name;
+}
+
 bool Function::isSafe(const Settings *settings) const
 {
     if (settings->safeChecks.externalFunctions) {

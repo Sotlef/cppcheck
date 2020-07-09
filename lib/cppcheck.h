@@ -36,9 +36,13 @@
 #include <string>
 
 class Tokenizer;
+class Scope;
 
 /// @addtogroup Core
 /// @{
+class CppCheck;
+typedef std::shared_ptr<CppCheck> PCppCheck;
+typedef std::shared_ptr<const CppCheck> CPCppCheck;
 
 /**
  * @brief This is the base class which will use other classes to do
@@ -51,7 +55,7 @@ public:
     /**
      * @brief Constructor.
      */
-    CppCheck(ErrorLogger &errorLogger,
+    CppCheck(CppCheck *parent, ErrorLogger &errorLogger,
              bool useGlobalSuppressions,
              std::function<bool(std::string,std::vector<std::string>,std::string,std::string*)> executeCommand);
 
@@ -76,6 +80,8 @@ public:
       */
     unsigned int check(const std::string &path);
     unsigned int check(const ImportProject::FileSettings &fs);
+
+    void checkExceptionSafety ();
 
     /**
       * @brief Check the file.
@@ -203,6 +209,8 @@ private:
 
     void bughuntingReport(const std::string &str) OVERRIDE;
 
+    void registerImplementations ();
+
     std::list<std::string> mErrorList;
     Settings mSettings;
 
@@ -237,6 +245,11 @@ private:
 
     /** Callback for executing a shell command (exe, args, output) */
     std::function<bool(std::string,std::vector<std::string>,std::string,std::string*)> mExecuteCommand;
+
+    std::map<std::string, std::pair<const Scope *, CppCheck *>> mImplementations;
+    std::unique_ptr<Tokenizer> mTokenizer;
+    std::vector<PCppCheck> mChildren;
+    CppCheck *mParent;
 };
 
 /// @}

@@ -210,7 +210,7 @@ int CppCheckExecutor::check(int argc, const char* const argv[])
 
     CheckUnusedFunctions::clear();
 
-    CppCheck cppCheck(*this, true, executeCommand);
+    CppCheck cppCheck(nullptr, *this, true, executeCommand);
 
     const Settings& settings = cppCheck.settings();
     mSettings = &settings;
@@ -936,6 +936,8 @@ int CppCheckExecutor::check_internal(CppCheck& cppcheck, int /*argc*/, const cha
                 if (settings.clangTidy)
                     cppcheck.analyseClangTidy(fs);
             }
+
+            cppcheck.checkExceptionSafety ();
         }
 
         // second loop to parse all markup files which may not work until all

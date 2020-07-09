@@ -32,6 +32,8 @@
 #include "tokenlist.h"
 #include "version.h"
 
+#include "checkexceptionsafety.h"
+
 #include "exprengine.h"
 
 #define PICOJSON_USE_INT64
@@ -57,9 +59,6 @@ static const char Version[] = CPPCHECK_VERSION_STRING;
 static const char ExtraVersion[] = "";
 
 static TimerResults s_timerResults;
-
-// CWE ids used
-static const CWE CWE398(398U);  // Indicator of Poor Code Quality
 
 namespace {
     struct AddonInfo {
@@ -241,7 +240,7 @@ static std::string getDefinesFlags(const std::string &semicolonSeparatedString)
     return flags;
 }
 
-CppCheck::CppCheck(ErrorLogger &errorLogger,
+CppCheck::CppCheck(CppCheck *parent, ErrorLogger &errorLogger,
                    bool useGlobalSuppressions,
                    std::function<bool(std::string,std::vector<std::string>,std::string,std::string*)> executeCommand)
     : mErrorLogger(errorLogger)
@@ -251,6 +250,7 @@ CppCheck::CppCheck(ErrorLogger &errorLogger,
     , mTooManyConfigs(false)
     , mSimplify(true)
     , mExecuteCommand(executeCommand)
+    , mParent (parent)
 {
 }
 
@@ -400,9 +400,26 @@ unsigned int CppCheck::check(const std::string &path, const std::string &content
     return checkFile(Path::simplifyPath(path), emptyString, iss);
 }
 
+void CppCheck::checkExceptionSafety ()
+{
+    CheckExceptionSafety check;
+
+    if (!Settings::terminated ()) {
+        for (auto child : mChildren) {
+            Timer timerRunChecks (
+                check.name () + "::runChecks", child->mSettings.showtime, &s_timerResults);
+
+            check.runChecks (&*child->mTokenizer, &child->mSettings, &*child, &mImplementations);
+        }
+    }
+}
+
 unsigned int CppCheck::check(const ImportProject::FileSettings &fs)
 {
-    CppCheck temp(mErrorLogger, mUseGlobalSuppressions, mExecuteCommand);
+    mChildren.emplace_back (
+        std::make_shared<CppCheck> (this, mErrorLogger, mUseGlobalSuppressions, mExecuteCommand));
+
+    CppCheck &temp = *mChildren.back ();
     temp.mSettings = mSettings;
     if (!temp.mSettings.userDefines.empty())
         temp.mSettings.userDefines += ';';
@@ -688,7 +705,9 @@ unsigned int CppCheck::checkFile(const std::string& filename, const std::string 
                 continue;
             }
 
-            Tokenizer tokenizer(&mSettings, this);
+            mTokenizer = std::unique_ptr<Tokenizer> (new Tokenizer (&mSettings, this));
+
+            Tokenizer &tokenizer = *mTokenizer;
             tokenizer.setPreprocessor(&preprocessor);
             if (mSettings.showtime != SHOWTIME_MODES::SHOWTIME_NONE)
                 tokenizer.setTimerResults(&s_timerResults);
@@ -748,6 +767,8 @@ unsigned int CppCheck::checkFile(const std::string& filename, const std::string 
                     }
                     checksums.insert(checksum);
                 }
+
+                registerImplementations ();
 
                 // Check normal tokens
                 checkNormalTokens(tokenizer);
@@ -1575,4 +1596,18 @@ void CppCheck::analyseWholeProgram(const std::string &buildDir, const std::map<s
 bool CppCheck::isUnusedFunctionCheckEnabled() const
 {
     return (mSettings.jobs == 1 && mSettings.isEnabled(Settings::UNUSED_FUNCTION));
+}
+
+void CppCheck::registerImplementations () {
+    if (mParent) {
+        const SymbolDatabase *symbols = mTokenizer->getSymbolDatabase ();
+        
+        for (const Scope *scope : symbols->functionScopes) {
+            // fileIndex > 0 means function definition lives in header file
+            // and potentially accesible for other CUs
+            if (scope->function->tokenDef->fileIndex () > 0) {
+                mParent->mImplementations[scope->function->getQualifiedName ()] = std::make_pair(scope, this);
+            }
+        }
+    }
 }

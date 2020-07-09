@@ -912,6 +912,8 @@ public:
      */
     const Token * constructorMemberInitialization() const;
 
+    std::string getQualifiedName () const;
+
 private:
     /** Recursively determine if this function overrides a virtual function in a base class */
     const Function * getOverriddenFunctionRecursive(const ::Type* baseType, bool *foundAllBaseClasses) const;

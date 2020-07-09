@@ -30,6 +30,7 @@
 #include <list>
 #include <string>
 
+class CppCheck;
 class Settings;
 class ErrorLogger;
 
@@ -52,26 +53,33 @@ static const struct CWE CWE703(703U);   // Improper Check or Handling of Excepti
 
 class CPPCHECKLIB CheckExceptionSafety : public Check {
 public:
+    typedef std::map<std::string, std::pair<const Scope *, CppCheck *>> FunctionImpls;
+    const FunctionImpls *functionImpls;
+
     /** This constructor is used when registering the CheckClass */
-    CheckExceptionSafety() : Check(myName()) {
+    CheckExceptionSafety() : Check(myName(), nullptr, nullptr, nullptr) {
     }
 
     /** This constructor is used when running checks. */
-    CheckExceptionSafety(const Tokenizer *tokenizer, const Settings *settings, ErrorLogger *errorLogger)
-        : Check(myName(), tokenizer, settings, errorLogger) {
+    CheckExceptionSafety(const Tokenizer *tokenizer, const Settings *settings, ErrorLogger *errorLogger, const FunctionImpls *impls)
+        : Check(myName(), tokenizer, settings, errorLogger), functionImpls (impls) {
+    }
+
+    void runChecks (const Tokenizer *tokenizer, const Settings *settings, ErrorLogger *errorLogger, const FunctionImpls *impls) {
+        if (tokenizer->isC ())
+            return;
+
+        CheckExceptionSafety checkExceptionSafety (tokenizer, settings, errorLogger, impls);
+        checkExceptionSafety.destructors ();
+        checkExceptionSafety.deallocThrow ();
+        checkExceptionSafety.checkRethrowCopy ();
+        checkExceptionSafety.checkCatchExceptionByValue ();
+        checkExceptionSafety.nothrowThrows ();
+        checkExceptionSafety.unhandledExceptionSpecification ();
     }
 
     void runChecks(const Tokenizer *tokenizer, const Settings *settings, ErrorLogger *errorLogger) OVERRIDE {
-        if (tokenizer->isC())
-            return;
-
-        CheckExceptionSafety checkExceptionSafety(tokenizer, settings, errorLogger);
-        checkExceptionSafety.destructors();
-        checkExceptionSafety.deallocThrow();
-        checkExceptionSafety.checkRethrowCopy();
-        checkExceptionSafety.checkCatchExceptionByValue();
-        checkExceptionSafety.nothrowThrows();
-        checkExceptionSafety.unhandledExceptionSpecification();
+        runChecks (tokenizer, settings, errorLogger, nullptr);
     }
 
     /** Don't throw exceptions in destructors */
@@ -137,7 +145,7 @@ private:
 
     /** Generate all possible errors (for --errorlist) */
     void getErrorMessages(ErrorLogger *errorLogger, const Settings *settings) const OVERRIDE {
-        CheckExceptionSafety c(nullptr, settings, errorLogger);
+        CheckExceptionSafety c(nullptr, settings, errorLogger, nullptr);
         c.destructorsError(nullptr, "Class");
         c.deallocThrowError(nullptr, "p");
         c.rethrowCopyError(nullptr, "varname");

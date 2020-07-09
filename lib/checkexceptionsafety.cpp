@@ -28,12 +28,12 @@
 
 //---------------------------------------------------------------------------
 
-// Register CheckExceptionSafety..
-namespace {
-    CheckExceptionSafety instance;
-}
+//// Register CheckExceptionSafety..
+//namespace {
+//    CheckExceptionSafety instance;
+//}
 
-static const Token *functionThrows (const Function *function);
+static const Token *functionThrows (const Function *function, const CheckExceptionSafety::FunctionImpls *impl);
 
 //---------------------------------------------------------------------------
 
@@ -70,15 +70,12 @@ void CheckExceptionSafety::destructors()
             //        break;
             //    }
             //}
-            if (auto token = functionThrows (function)) {
+            if (auto token = functionThrows (function, functionImpls)) {
                 destructorsError (token, scope->className);
             }
         }
     }
 }
-
-
-
 
 void CheckExceptionSafety::deallocThrow()
 {
@@ -201,7 +198,7 @@ void CheckExceptionSafety::checkCatchExceptionByValue()
 }
 
 
-static const Token * functionThrowsRecursive(const Function * function, std::set<const Function *> & recursive)
+static const Token * functionThrowsRecursive(const Function * function, std::set<const Function *> & recursive, const CheckExceptionSafety::FunctionImpls *impls)
 {
     // check for recursion and bail if found
     if (!recursive.insert(function).second)
@@ -226,8 +223,18 @@ static const Token * functionThrowsRecursive(const Function * function, std::set
             } else if (called->isNoExcept() && called->noexceptArg &&
                        called->noexceptArg->str() != "true") {
                 return tok;
-            } else if (functionThrowsRecursive(called, recursive)) {
-                return tok;
+            } else {
+                if (!called->functionScope && impls) {
+                    auto it = impls->find (called->getQualifiedName ());
+                        
+                    if (it != impls->end ()) {
+                        called = it->second.first->function;
+                    }                   
+                }
+
+                if (functionThrowsRecursive (called, recursive, impls)) {
+                    return tok;
+                }
             }
         }
     }
@@ -235,11 +242,11 @@ static const Token * functionThrowsRecursive(const Function * function, std::set
     return nullptr;
 }
 
-static const Token * functionThrows(const Function * function)
+static const Token * functionThrows(const Function * function, const CheckExceptionSafety::FunctionImpls *impls)
 {
     std::set<const Function *>  recursive;
 
-    return functionThrowsRecursive(function, recursive);
+    return functionThrowsRecursive(function, recursive, impls);
 }
 
 //--------------------------------------------------------------------------
@@ -259,21 +266,21 @@ void CheckExceptionSafety::nothrowThrows()
         // check noexcept and noexcept(true) functions
         if (function->isNoExcept() &&
             (!function->noexceptArg || function->noexceptArg->str() == "true")) {
-            const Token *throws = functionThrows(function);
+            const Token *throws = functionThrows(function, functionImpls);
             if (throws)
                 noexceptThrowError(throws);
         }
 
         // check throw() functions
         else if (function->isThrow() && !function->throwArg) {
-            const Token *throws = functionThrows(function);
+            const Token *throws = functionThrows(function, functionImpls);
             if (throws)
                 noexceptThrowError(throws);
         }
 
         // check __attribute__((nothrow)) or __declspec(nothrow) functions
         else if (function->isAttributeNothrow()) {
-            const Token *throws = functionThrows(function);
+            const Token *throws = functionThrows(function, functionImpls);
             if (throws)
                 noexceptThrowError(throws);
         }
