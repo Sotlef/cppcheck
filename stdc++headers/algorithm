@@ -1,0 +1,13 @@
+#pragma once
+#include <utility>
+
+namespace std {
+
+template <class T>
+inline void swap(T& lhs, T& rhs) noexcept {
+    T tmp = std::move(lhs);
+    lhs = std::move(rhs);
+    rhs = std::move(tmp);
+}
+
+}

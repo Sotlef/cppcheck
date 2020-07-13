@@ -1,0 +1,4 @@
+#pragma once
+#define NULL nullptr
+
+typedef decltype(nullptr) nullptr_t;

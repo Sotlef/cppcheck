@@ -62,7 +62,7 @@ static bool executeCommand(std::string exe, std::vector<std::string> args, std::
 CheckThread::CheckThread(ThreadResult &result) :
     mState(Ready),
     mResult(result),
-    mCppcheck(result, true, executeCommand),
+    mCppcheck(nullptr, result, true, executeCommand),
     mAnalyseWholeProgram(false)
 {
     //ctor
@@ -128,6 +128,8 @@ void CheckThread::run()
         if (mState == Running)
             fileSettings = mResult.getNextFileSettings();
     }
+
+    mCppcheck.checkExceptionSafety ();
 
     if (mState == Running)
         mState = Ready;

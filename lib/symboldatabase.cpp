@@ -2520,7 +2520,7 @@ std::string Function::getQualifiedName () const
             do {
                 function_name += def->str () + ' ';
                 def = def->next ();
-            } while (def && def->str () != ";");
+            } while (def && def->str () != ";" && def->str () != "{" && def->str () != "override");
         }
     }
 
